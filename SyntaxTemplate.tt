@@ -1,0 +1,195 @@
+﻿<#@ template language="C#" hostspecific="True"#>
+<#@include file="Manager.ttinclude"#>
+
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="System.IO"#>
+<#@ import namespace="System"#>
+<#@ import namespace="System.Configuration"#>  
+
+<# var manager = Manager.Create(Host, GenerationEnvironment); #>
+
+<# manager.StartNewFile(@"Syntax\Node.cs"); #>
+namespace GrapeCity.CodeAnalysis.TypeScript.Syntax
+{
+    public class Node
+    {
+        private Dictionary<string, object> _pocket;
+
+        public NodeKind Kind
+        {
+            get { return NodeKind.Unknown;}
+        }
+
+        public Node Parent { get; private set; }
+        
+        public string Name { get; private set; }
+
+        public string Text { get; private set; }
+
+        public int Start { get; private set; }
+
+        public int End { get; private set; }
+
+        public Dictionary<string, Object> Pocket
+        {
+            get { return this._pocket; }
+        }
+
+        public virtual void Init(JObject jsonObj)
+        {
+            this._pocket = new Dictionary<string, object>();
+
+            string[] path = jsonObj.Path.Split(".");
+            this.Name = path[path.Length - 1];
+
+            JToken jsonText = jsonObj["text"];
+            this.Text = jsonText == null ? "" : jsonText.ToString();
+
+            JToken jsonPos = jsonObj["pos"];
+            this.Start = jsonPos == null ? 0 : int.Parse(jsonPos.ToString());
+
+            JToken jsonEnd = jsonObj["end"];
+            this.End = jsonPos == null ? 0 : int.Parse(jsonPos.ToString());
+        }
+
+        public virtual void AddNode(Node childNode)
+        {
+            childNode.Parent = this;
+        }
+
+	    public virtual bool RemoveNode(Node childNode)
+        {
+            bool ret = this.Children.Remove(childNode);
+            if (ret)
+            {
+                childNode.Parent = null;
+            }
+            return ret;
+        }
+    }
+}
+<# manager.EndBlock(); #>
+
+<#
+    Dictionary<string, string> aliasKinds = new Dictionary<string, string>();
+    using ( StreamReader reader = new StreamReader (@"E:\Temp\ConsoleT4\ConsoleT4\syntaxkind-alias.txt"))
+    {
+        string line;
+        while((line = reader.ReadLine()) != null)
+        {
+            string[] values = line.Split('=');
+            if (values.Length != 2)
+            {
+                continue;
+            } 
+            string kind = values[0].Trim(' ', ',');
+            string kindAlias = values[1].Trim(' ', ',');
+            aliasKinds.Add(kind, kindAlias);
+        }
+    }
+
+	List<string> kinds = new List<string>();
+	kinds.Add("Declaration");
+	kinds.Add("Expression");
+	kinds.Add("Statement");
+	using( StreamReader reader = new StreamReader (@"E:\Temp\ConsoleT4\ConsoleT4\syntaxkind.txt"))
+	{
+		string line;
+		while((line = reader.ReadLine()) != null)
+		{
+			string kind = line.Split(':')[0].Trim(' ', '"');
+			if (aliasKinds.ContainsKey(kind))
+            {
+                kind = aliasKinds[kind];
+            }
+			kinds.Add(kind);
+		}
+	}
+
+    for(int i = 0; i < kinds.Count; i++)
+    {
+		string kind = kinds[i];
+		string baseClass = "Node";
+        if (kind.EndsWith("Declaration") && kind != "Declaration")
+        {
+            baseClass = "Declaration";
+        }
+        if (kind.EndsWith("Expression") && kind != "Expression")
+        {
+            baseClass = "Expression";
+        }
+        if (kind.EndsWith("Statement") && kind != "Statement")
+        {
+            baseClass = "Statement";
+        }
+
+		manager.StartNewFile(@"Syntax\" + kind + ".cs");
+#>
+
+namespace GrapeCity.CodeAnalysis.TypeScript.Syntax
+{
+    public class <#=kind#>: <#=baseClass#>
+    {
+	    #region Properties
+        public override NodeKind Kind
+        {
+            get { return NodeKind.<#=kind#>; }
+        }
+		#endregion
+
+        public override void Init(JObject jsonObj)
+        {
+            base.Init(jsonObj);
+
+			//TODO:
+        }
+
+        public override void AddNode(Node childNode)
+        {
+            base.AddNode(childNode);
+
+			string nodeName = childNode.NodeName;
+            switch (nodeName)
+            {
+				//TODO:
+				 default:
+                    this.ProcessUnknownNode(childNode);
+                    break;
+			}
+        }
+
+		public override bool RemoveNode(Node childNode)
+        {
+            bool ret = base.RemoveNode(childNode);
+
+			//TODO:
+
+            return ret;
+        }
+
+
+    }
+}
+
+<#
+		manager.EndBlock();
+	}
+#>
+
+//Header
+<# manager.StartHeader(); #>
+using System;
+using System.Collections.Generic;
+using System.Text;
+using Newtonsoft.Json.Linq;
+<# manager.EndBlock(); #>
+
+//Footer 
+<# manager.StartFooter(); #>
+<# manager.EndBlock(); #>
+
+//Process
+<# manager.Process(true); #>
